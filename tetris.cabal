@@ -1,0 +1,29 @@
+name:                tetris
+version:             0.0.1.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/trvrl/CPSC-312-Tetris#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Trevor Luu
+maintainer:          trev.luu@gmail.com
+copyright:           2017 Trevor Luu
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+executable tetris-exe
+  hs-source-dirs:     app
+  main-is:            Main.hs
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  build-depends:      base
+                    , gloss
+  other-modules:      Graphical
+                    , Types
+                    , Engine
+  default-language:   Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/trvrl/CPSC-312-Tetris

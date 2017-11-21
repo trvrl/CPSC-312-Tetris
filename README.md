@@ -1,1 +1,1 @@
-# CPSC-312-Tetris
+# tetris
