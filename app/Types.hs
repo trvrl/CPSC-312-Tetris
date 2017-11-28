@@ -1,17 +1,19 @@
 module Types where
 import Graphics.Gloss.Data.Color
 import Data.Matrix
+import System.Random
 
 import Graphics.Gloss
 
 data Tetris = Tetris {
-    xs :: Float,
+    points :: Int,
     piece :: Tetromino,
-    gameBoard :: Matrix Cell
+    gameBoard :: Matrix Cell,
+    randGen :: StdGen
 }
 
 -- Tetromino Shape/Type
-data Mino = I | O | T | S | Z | J | L deriving Enum
+data Mino = I | O | T | S | Z | J | L deriving (Enum, Eq)
 
 -- Tetromino - a Tetris piece
 data Tetromino = Tetromino {

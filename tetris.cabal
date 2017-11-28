@@ -21,6 +21,7 @@ executable tetris-exe
                     , gloss
                     , matrix
                     , vector
+                    , random
   other-modules:      Graphical
                     , Types
                     , Engine

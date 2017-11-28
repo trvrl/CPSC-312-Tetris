@@ -4,10 +4,12 @@ import Types
 import Data.List
 import Data.Maybe
 import Data.Matrix
-import qualified Data.Vector as Vector
 import Data.Bool
+import qualified Data.Vector as Vector
+import Graphics.Gloss.Data.Color
+import System.Random
 
-initial = Tetris 50 (tetromino T)
+initial = Tetris 0 (tetromino L) initEmptyBoard (mkStdGen 1)
 
 steps :: Int
 steps = 2
@@ -18,9 +20,6 @@ height = 24
 heightEnd = 24
 squareSizeT = 20
 
-startingGame = Tetris { gameBoard = initBoard }
-tetris = Tetris {gameBoard = initBoard4}
-
 -- Takes in a Matrix column (as a Vector) and returns the occupied cell with the smallest y value and its index.
 getHighestSquareInColumn :: Vector.Vector Cell -> (Cell, Int)
 getHighestSquareInColumn vec =  getMinY vec 1
@@ -30,7 +29,7 @@ getMinY :: Vector.Vector Cell -> Int -> (Cell,Int)
 getMinY vec n = if occ1 then ((Vector.head vec),n) else if n == 24 then (Cell{ x = x1, y = y1, col = col1, occ = occ1}, (height+1)) else getMinY (Vector.tail vec) (n+1)
     where 
         x1 = x (Vector.head vec)
-        y1 = fromIntegral ((round (y (Vector.head vec))) + squareSizeT)
+        y1 = y (Vector.head vec) + 1
         col1 = col (Vector.head vec)
         occ1 = occ (Vector.head vec)
 
@@ -53,11 +52,11 @@ getAllHighestSquaresInRange startCol endCol gameBoard
 
 -- Creates an empty game board
 initEmptyBoard :: Matrix Cell
-initEmptyBoard = matrix height width (\(y1,x1) -> Cell{ x = (fromIntegral (x1*squareSizeT-squareSizeT)), y = (fromIntegral (y1*squareSizeT-squareSizeT)), col = black, occ = False})
+initEmptyBoard = matrix height width (\(y1,x1) -> Cell{ x = x1 - 1, y = y1 - 1, col = black, occ = False})
 
 -- Checks the game for things to be updated
 checkGame :: Tetris -> Tetris
-checkGame tetris = Tetris { gameBoard = (clearFilledRows height (gameBoard tetris)) }
+checkGame (Tetris points tetromino board randGen) = (Tetris points tetromino (clearFilledRows height board) randGen)
 
 -- Given a board, checks to see if the game has been lost
 gameLost :: Matrix Cell -> Bool
@@ -139,50 +138,61 @@ checkRow vec = if null vec then True else occ1 && (checkRow (Vector.tail vec))
     where 
         occ1 = occ (Vector.head vec)
 
-
+-- iterates the board to a new state every step of play
 step :: Float -> Tetris -> Tetris
-step _ (Tetris x tetromino) = (Tetris x tetromino)
+step _ (Tetris points tetromino board randGen) = (Tetris points tetromino board randGen)
 
+-- moves a tetromino up in the play area
 moveUp :: Tetromino -> Tetromino
 moveUp (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
     where newPos = move minoPos(0, -1)
 
+-- moves a tetromino down in the play area
 moveDown :: Tetromino -> Tetromino
 moveDown (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
     where newPos = move minoPos(0, 1)
 
+-- moves a tetromino right in the play area
 moveRight :: Tetromino -> Tetromino
 moveRight (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
     where newPos = move minoPos (1, 0)
 
+-- moves a tetromino left in the play area
 moveLeft :: Tetromino -> Tetromino
 moveLeft (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos 
     where newPos = move minoPos (-1, 0)
 
+-- rotates a tetromino right (CW) in the play area
 rotateRight :: Tetromino -> Tetromino
 rotateRight (Tetromino mino from position) = Tetromino mino newRot newPos where 
     to = if (from < 3) then from + 1 else 0
     (newRot, newPos) = rotate mino from to position
 
+-- rotates a tetromino left (CCW) in the play area
 rotateLeft :: Tetromino -> Tetromino
 rotateLeft (Tetromino mino from position) = Tetromino mino newRot newPos where
     to = if (from > 0) then from - 1 else 3
     (newRot, newPos) = rotate mino from to position
 
+-- creates a tetromino given the mino type in the initial position and rotation
 tetromino :: Mino -> Tetromino
 tetromino mino = Tetromino mino 0 (initPos mino)
 
+-- initial position of the four squares of a specific tetromino type
 initPos :: Mino -> MinoPos
 initPos I = minoPos I 0 (3, 3)
 initPos O = minoPos O 0 (4, 2)
 initPos mino = minoPos mino 0 (4, 3)
 
+-- applies function to all tetromino square positions
 mapPos :: (Coord -> t) -> MinoPos -> (t, t, t, t)
 mapPos f (a, b, c, d) = (f a, f b, f c, f d)
 
+-- creates a list from the tetromino square positions
 posToList :: MinoPos -> [Coord]
 posToList (a, b, c, d) = [a, b, c, d]
 
+-- dictates the position of the tetromino in their various rotations
 -- I Positions
 minoPos :: Mino -> Int -> Coord -> MinoPos
 
@@ -224,7 +234,7 @@ minoPos L 2 (x, y) = ( (x, y), (x + 1, y), (x - 1, y + 1), (x - 1 ,y) )
 minoPos L 3 (x, y) = ( (x, y), (x, y + 1), (x - 1, y - 1), (x, y - 1) )
 minoPos L _ (x, y) = ( (x, y), (x - 1, y), (x + 1, y - 1), (x + 1, y) )
 
-
+-- used to determine kick position to check during rotation
 kick :: Mino -> Int -> Int -> [Coord]
 -- I Wall Kick Data
 kick I 0 1 = [ ( 0, 0), (-2, 0), ( 1, 0), (-2, 1), ( 1,-2) ]
@@ -268,17 +278,26 @@ shift ((ax, ay), (bx, by), (cx, cy), (dx, dy)) (x, y) = (a, b, c, d) where
 -- Rotates Tetromino
 rotate :: Mino -> Int -> Int -> MinoPos -> (Int, MinoPos)
 rotate mino from to position = newPosition where
-    (a, _, _, _) = position
+    (aa, _, _, _) = position
+    a = if mino == I then rotateI from to aa else aa
     -- Rotates tetromino
     rotated = minoPos mino to a
     -- Kick positions
     kicks = kick mino from to
     -- Shifted rotations to check
-    kicked = map (\d -> shift position d) [(0, 0)]
-    newPosition = myFind checkPos kicked position
-    -- Find the first position that is legal
-    -- newPosition = if (checkPos rotated) then (to, rotated) else (from, position)
-    -- newPosition = if isJust checked then (to, fromJust checked) else (from, position)
+    kicked = map (shift rotated) kicks
+    newPosition = findKick from to kicked position
+
+-- Special Rotation for I blocks
+rotateI :: Int -> Int -> Coord -> Coord
+rotateI 0 1 (x, y) = (x + 2, y - 1)
+rotateI 1 0 (x, y) = (x - 2, y + 1)
+rotateI 1 2 (x, y) = (x + 1, y + 2)
+rotateI 2 1 (x, y) = (x - 1, y - 2)
+rotateI 2 3 (x, y) = (x - 2, y + 1)
+rotateI 3 2 (x, y) = (x + 2, y - 1)
+rotateI 3 0 (x, y) = (x - 1, y - 2)
+rotateI 0 3 (x, y) = (x + 1, y + 2)
 
 -- Moves Tetromino
 move :: MinoPos -> Coord -> MinoPos
@@ -287,6 +306,10 @@ move position movement = newPosition where
     shifted = shift position movement
     newPosition = if (checkPos shifted) then shifted else position
 
-myFind :: (t -> Bool) -> [t] -> t -> t
-myFind pred (h: t) def = if (pred h) then h else myFind pred t
-myFind pred [] def = def
+findKick :: Int -> Int -> [MinoPos] -> MinoPos -> (Int, MinoPos)
+findKick from _ [] oldPosition = (from, oldPosition)
+findKick from to (newPosition: rest) oldPosition = if checkPos newPosition then (to, newPosition) else findKick from to rest oldPosition
+
+nextTetromino :: StdGen -> (Tetromino, StdGen)
+nextTetromino randGen = (tetromino (toEnum rand :: Mino), newGen)
+    where (rand, newGen) = randomR (0, 6) randGen
