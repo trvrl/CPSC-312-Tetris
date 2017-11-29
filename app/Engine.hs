@@ -11,14 +11,17 @@ import System.Random
 
 initial = Tetris 0 (tetromino L) initEmptyBoard (mkStdGen 1)
 
+-- GENERAL --
+
 steps :: Int
 steps = 2
 
-squareSizeT, height, heightEnd, width :: Int
+height, heightEnd, width :: Int
 width = 10
 height = 24
 heightEnd = 24
-squareSizeT = 20
+
+-- PLAY AREA --
 
 -- Takes in a Matrix column (as a Vector) and returns the occupied cell with the smallest y value and its index.
 getHighestSquareInColumn :: Vector.Vector Cell -> (Cell, Int)
@@ -140,7 +143,7 @@ checkRow vec = if null vec then True else occ1 && (checkRow (Vector.tail vec))
 
 -- iterates the board to a new state every step of play
 step :: Float -> Tetris -> Tetris
-step _ (Tetris points tetromino board randGen) = (Tetris points tetromino board randGen)
+step _ (Tetris points tetromino board randGen) = Tetris points tetromino board randGen
 
 -- moves a tetromino up in the play area
 moveUp :: Tetromino -> Tetromino
@@ -174,28 +177,13 @@ rotateLeft (Tetromino mino from position) = Tetromino mino newRot newPos where
     to = if (from > 0) then from - 1 else 3
     (newRot, newPos) = rotate mino from to position
 
--- creates a tetromino given the mino type in the initial position and rotation
-tetromino :: Mino -> Tetromino
-tetromino mino = Tetromino mino 0 (initPos mino)
 
--- initial position of the four squares of a specific tetromino type
-initPos :: Mino -> MinoPos
-initPos I = minoPos I 0 (3, 3)
-initPos O = minoPos O 0 (4, 2)
-initPos mino = minoPos mino 0 (4, 3)
+-- TETROMINO POSITION DEFINITIONS --
 
--- applies function to all tetromino square positions
-mapPos :: (Coord -> t) -> MinoPos -> (t, t, t, t)
-mapPos f (a, b, c, d) = (f a, f b, f c, f d)
-
--- creates a list from the tetromino square positions
-posToList :: MinoPos -> [Coord]
-posToList (a, b, c, d) = [a, b, c, d]
-
--- dictates the position of the tetromino in their various rotations
--- I Positions
+-- | Dictates the position of the tetromino in their various rotations
+-- | The mino positions are in reference to the given coordinates
 minoPos :: Mino -> Int -> Coord -> MinoPos
-
+-- I Positions
 minoPos I 1 (x, y) = ( (x, y), (x, y + 1), (x, y + 2), (x, y + 3) )
 minoPos I 2 (x, y) = ( (x, y), (x - 1, y), (x - 2, y), (x - 3, y) )
 minoPos I 3 (x, y) = ( (x, y), (x, y - 1), (x, y - 2), (x, y - 3) )
@@ -234,9 +222,58 @@ minoPos L 2 (x, y) = ( (x, y), (x + 1, y), (x - 1, y + 1), (x - 1 ,y) )
 minoPos L 3 (x, y) = ( (x, y), (x, y + 1), (x - 1, y - 1), (x, y - 1) )
 minoPos L _ (x, y) = ( (x, y), (x - 1, y), (x + 1, y - 1), (x + 1, y) )
 
--- used to determine kick position to check during rotation
+-- | Returns the lowest positions of a tetromino for each column
+-- | Returned positions are in ordered in ascending x coordinates
+bottom :: Mino -> Int -> MinoPos -> [Coord]
+bottom I 1 (_, _, _, d) = [d]
+bottom I 2 (a, b, c, d) = [d, b, c, d]
+bottom I 3 (a, b, c, d) = [a]
+bottom I _ (a, b, c, d) = [a, b, c, d]
+
+bottom O _ (_, _, c, d) = [c, d]
+
+bottom T 1 (a, b, c, d) = [d, c]
+bottom T 2 (a, b, c, d) = [d, c, b]
+bottom T 3 (a, b, c, d) = [c, b]
+bottom T _ (a, b, c, d) = [b, a, d]
+
+bottom S 1 (a, b, c, d) = [a, d]
+bottom S 2 (a, b, c, d) = [d, c, b]
+bottom S 3 (a, b, c, d) = [c, b]
+bottom S _ (a, b, c, d) = [b, a, d]
+
+bottom Z 1 (a, b, c, d) = [d, c]
+bottom Z 2 (a, b, c, d) = [d, c, b]
+bottom Z 3 (a, b, c, d) = [b, a]
+bottom Z _ (a, b, c, d) = [b, a, d]
+
+bottom J 0 (a, b, c, d) = [b, a, d]
+bottom J 1 (a, b, c, d) = [d, c]
+bottom J 2 (a, b, c, d) = [d, a, c]
+bottom J 3 (a, b, c, d) = [c, b]
+
+bottom L 1 (a, b, c, d) = [d, c]
+bottom L 2 (a, b, c, d) = [c, a, b]
+bottom L 3 (a, b, c, d) = [c, b]
+bottom L _ (a, b, c, d) = [b, a, d]
+
+
+-- | Aligns the reference position of a Tetromino prior to rotation
+alignRotation :: Mino -> Int -> Int -> Coord -> Coord
+alignRotation I 0 1 (x, y) = (x + 2, y - 1)
+alignRotation I 1 0 (x, y) = (x - 2, y + 1)
+alignRotation I 1 2 (x, y) = (x + 1, y + 2)
+alignRotation I 2 1 (x, y) = (x - 1, y - 2)
+alignRotation I 2 3 (x, y) = (x - 2, y + 1)
+alignRotation I 3 2 (x, y) = (x + 2, y - 1)
+alignRotation I 3 0 (x, y) = (x - 1, y - 2)
+alignRotation I 0 3 (x, y) = (x + 1, y + 2)
+alignRotation _ _ _ (x, y) = (x, y)
+
+-- | Determines kick position to check during rotation when a simple rotation is not possible
+-- | Given a mino type, rotation from, and rotation to, returns rotation shifts ("kicks") to check
 kick :: Mino -> Int -> Int -> [Coord]
--- I Wall Kick Data
+-- | I Wall Kick Data
 kick I 0 1 = [ ( 0, 0), (-2, 0), ( 1, 0), (-2, 1), ( 1,-2) ]
 kick I 1 0 = [ ( 0, 0), ( 2, 0), (-1, 0), ( 2,-1), (-1, 2) ]
 kick I 1 2 = [ ( 0, 0), (-1, 0), ( 2, 0), (-1,-2), ( 2, 1) ]
@@ -246,7 +283,7 @@ kick I 3 2 = [ ( 0, 0), (-2, 0), ( 1, 0), (-2, 1), ( 1,-2) ]
 kick I 3 0 = [ ( 0, 0), ( 1, 0), (-2, 0), ( 1, 2), (-2,-1) ]
 kick I 0 3 = [ ( 0, 0), (-1, 0), ( 2, 0), (-1,-2), ( 2, 1) ]
 
--- J, L, S, T, Z Wall Kick Data
+-- | J, L, S, T, Z Wall Kick Data
 kick _ 0 1 = [ ( 0, 0), (-1, 0), (-1,-1), ( 0, 2), (-1, 2) ]
 kick _ 1 0 = [ ( 0, 0), ( 1, 0), ( 1, 1), ( 0,-2), ( 1,-2) ]
 kick _ 1 2 = [ ( 0, 0), ( 1, 0), ( 1, 1), ( 0,-2), ( 1,-2) ]
@@ -257,17 +294,51 @@ kick _ 3 0 = [ ( 0, 0), (-1, 0), (-1, 1), ( 0,-2), (-1,-2) ]
 kick _ 0 3 = [ ( 0, 0), ( 1, 0), ( 1,-1), ( 0, 2), ( 1, 2) ]
 
 
--- Checks if a square coordinate is legal
+-- TETROMINO GENERATORS --
+
+-- | Creates a tetromino given the mino type in the initial position and rotation
+tetromino :: Mino -> Tetromino
+tetromino mino = Tetromino mino 0 (initPos mino)
+
+-- | Defines the initial positions four squares of a specific tetromino type
+initPos :: Mino -> MinoPos
+initPos I = minoPos I 0 (3, 3)
+initPos O = minoPos O 0 (4, 2)
+initPos mino = minoPos mino 0 (4, 3)
+
+-- | Generates a Random Tetromino
+-- | Takes a random number generator and returns a random tetromino and the generator
+nextTetromino :: StdGen -> (Tetromino, StdGen)
+nextTetromino randGen = (tetromino (toEnum rand :: Mino), newGen)
+    where (rand, newGen) = randomR (0, 6) randGen
+
+-- TETROMINO POSITION UTILITY FUNCTIONS --
+
+-- | Applies function to all tetromino square positions
+mapPos :: (Coord -> t) -> MinoPos -> (t, t, t, t)
+mapPos f (a, b, c, d) = (f a, f b, f c, f d)
+
+-- | Creates a list from the tetromino square positions
+posToList :: MinoPos -> [Coord]
+posToList (a, b, c, d) = [a, b, c, d]
+
+-- | Checks if a square coordinate is legal
+-- | Check left wall, right wall, and floor
 isLegal :: Coord -> Bool
 isLegal (x, y) = left && right && floor where
     left = x > -1
     right = x < 10
     floor = y < 24
 
+-- | Checks that all mino positions are legal
 checkPos :: MinoPos -> Bool
 checkPos (a, b, c, d) = isLegal a && isLegal b && isLegal c && isLegal d
 
--- Move tetromino by coorinate shift
+
+-- TETROMINO MOVEMENT BEHAVIOUR --
+
+-- | Applies a coordinate shift to all positions of a Tetromino
+-- | Returns the mino positions shifted by the given coordinates
 shift :: MinoPos -> Coord -> MinoPos
 shift ((ax, ay), (bx, by), (cx, cy), (dx, dy)) (x, y) = (a, b, c, d) where
     a = (ax + x, ay + y)
@@ -275,41 +346,31 @@ shift ((ax, ay), (bx, by), (cx, cy), (dx, dy)) (x, y) = (a, b, c, d) where
     c = (cx + x, cy + y)
     d = (dx + x, dy + y)
 
--- Rotates Tetromino
+-- | Rotates Tetromino and ensures rotation is legal
+-- | IF no shifted rotations are legal, the tetrmomino is not rotated
 rotate :: Mino -> Int -> Int -> MinoPos -> (Int, MinoPos)
 rotate mino from to position = newPosition where
     (aa, _, _, _) = position
-    a = if mino == I then rotateI from to aa else aa
-    -- Rotates tetromino
+    -- | Aligns tetromino rotation
+    a = alignRotation mino from to aa
+    -- | Rotates tetromino
     rotated = minoPos mino to a
-    -- Kick positions
+    -- | Kick positions
     kicks = kick mino from to
-    -- Shifted rotations to check
+    -- | Shifted rotations to check
     kicked = map (shift rotated) kicks
     newPosition = findKick from to kicked position
 
--- Special Rotation for I blocks
-rotateI :: Int -> Int -> Coord -> Coord
-rotateI 0 1 (x, y) = (x + 2, y - 1)
-rotateI 1 0 (x, y) = (x - 2, y + 1)
-rotateI 1 2 (x, y) = (x + 1, y + 2)
-rotateI 2 1 (x, y) = (x - 1, y - 2)
-rotateI 2 3 (x, y) = (x - 2, y + 1)
-rotateI 3 2 (x, y) = (x + 2, y - 1)
-rotateI 3 0 (x, y) = (x - 1, y - 2)
-rotateI 0 3 (x, y) = (x + 1, y + 2)
-
--- Moves Tetromino
+-- | Moves Tetromino based on coordinate shift and ensures move is legal
 move :: MinoPos -> Coord -> MinoPos
 move position movement = newPosition where
-    -- Shift tetromino
+    -- | Shift tetromino
     shifted = shift position movement
+    -- | Check tetromino positions
     newPosition = if (checkPos shifted) then shifted else position
 
+-- | Finds the first shifted ("kicked") rotation position that is legal and the new rotation
+-- | If no rotations are legal, the old position and rotation are returned
 findKick :: Int -> Int -> [MinoPos] -> MinoPos -> (Int, MinoPos)
 findKick from _ [] oldPosition = (from, oldPosition)
 findKick from to (newPosition: rest) oldPosition = if checkPos newPosition then (to, newPosition) else findKick from to rest oldPosition
-
-nextTetromino :: StdGen -> (Tetromino, StdGen)
-nextTetromino randGen = (tetromino (toEnum rand :: Mino), newGen)
-    where (rand, newGen) = randomR (0, 6) randGen
