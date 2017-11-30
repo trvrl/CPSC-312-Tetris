@@ -8,6 +8,7 @@ import Data.Bool
 import qualified Data.Vector as Vector
 import Graphics.Gloss.Data.Color
 import System.Random
+import Debug.Trace
 
 initial = Tetris
     { points = 0
@@ -165,7 +166,7 @@ step elapsed tetris @ Tetris { mode = Play } = next where
     timePassed = elapsed + (time tetris)
     gravity = fromIntegral (15 - speed tetris) / 15
     next = if timePassed > gravity
-        then (check . merge . clear . refresh) tetris { time = 0 }
+        then (refresh . clear. merge . check) tetris { time = 0 }
         else tetris { time = timePassed }
 
 check :: Tetris -> Tetris
@@ -293,10 +294,10 @@ bottom Z 2 (a, b, c, d) = [d, c, b]
 bottom Z 3 (a, b, c, d) = [b, a]
 bottom Z _ (a, b, c, d) = [b, a, d]
 
-bottom J 0 (a, b, c, d) = [b, a, d]
 bottom J 1 (a, b, c, d) = [d, c]
 bottom J 2 (a, b, c, d) = [d, a, c]
 bottom J 3 (a, b, c, d) = [c, b]
+bottom J _ (a, b, c, d) = [b, a, d]
 
 bottom L 1 (a, b, c, d) = [d, c]
 bottom L 2 (a, b, c, d) = [c, a, b]
@@ -435,22 +436,22 @@ hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
 hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestSquares
     where
         tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
-        (_, minCol) = head tetrominoCoordinates
-        (_, maxCol) = last tetrominoCoordinates
+        (minCol, _) = head tetrominoCoordinates
+        (maxCol, _) = last tetrominoCoordinates
         highestSquares = getAllHighestSquaresInRange minCol maxCol board
 
 -- given a list of coordinates and a list of highest cell, determines if a position has been hit
 checkPositionHit :: [(Int,Int)] -> [(Cell,Int,Int)] -> Bool
-checkPositionHit coordinates highestSquares = foldl (\ r x -> r || x ) False [ (x == (x1 + 1) || y == y1) || x == 23 | (x,y) <- coordinates, (cell,y1,x1) <- highestSquares]
+checkPositionHit coordinates highestSquares = foldl (\ r x -> r || x ) False [ (x == (x1 + 1) && y == y1) || y == 23 | (x,y) <- coordinates, (cell,y1,x1) <- highestSquares]
 
 -- adds a tetromino to the board
 addTetrominoToBoard :: Tetromino -> Matrix Cell -> Matrix Cell
 addTetrominoToBoard tetromino board = setElements coordinates (minoColor (mino tetromino)) board 
-    where 
+    where
         coordinates = posToList (position tetromino)
 
 -- Sets elements on a board; for tetromino addition only
-setElements :: [(Int,Int)] -> Color -> Matrix Cell -> Matrix Cell
+setElements :: [(Int, Int)] -> Color -> Matrix Cell -> Matrix Cell
 setElements coordinates col board
     | null coordinates = board
     | otherwise = setElements rest col (setElem  newCell (y1,x1) board)
