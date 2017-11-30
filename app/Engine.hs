@@ -438,11 +438,12 @@ hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestS
         tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
         (minCol, _) = head tetrominoCoordinates
         (maxCol, _) = last tetrominoCoordinates
-        highestSquares = getAllHighestSquaresInRange minCol maxCol board
+        highestSquares = getAllHighestSquaresInRange (minCol+1) (maxCol+1) board
 
 -- given a list of coordinates and a list of highest cell, determines if a position has been hit
 checkPositionHit :: [(Int,Int)] -> [(Cell,Int,Int)] -> Bool
-checkPositionHit coordinates highestSquares = foldl (\ r x -> r || x ) False [ (x == (x1 + 1) && y == y1) || y == 23 | (x,y) <- coordinates, (cell,y1,x1) <- highestSquares]
+checkPositionHit coordinates highestSquares = foldl (\ r x -> r || x ) False minomap
+    where minomap = [((x+1) == (x1) && (y+1) == (y1-1)) || (y+1) == 24 | (x,y) <- coordinates, (cell,y1,x1) <- highestSquares]
 
 -- adds a tetromino to the board
 addTetrominoToBoard :: Tetromino -> Matrix Cell -> Matrix Cell
@@ -454,9 +455,9 @@ addTetrominoToBoard tetromino board = setElements coordinates (minoColor (mino t
 setElements :: [(Int, Int)] -> Color -> Matrix Cell -> Matrix Cell
 setElements coordinates col board
     | null coordinates = board
-    | otherwise = setElements rest col (setElem  newCell (y1,x1) board)
+    | otherwise = setElements rest col (setElem  newCell ((y1+1),(x1+1)) board)
     where
         (x1,y1) = head coordinates
         rest = tail coordinates
-        cell = getElem y1 x1 board
+        cell = getElem (y1+1) (x1+1) board
         newCell = Cell { x = (x cell), y = (y cell), col = col, occ = True }
