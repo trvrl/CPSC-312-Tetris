@@ -48,6 +48,13 @@ getMinY vec n = if occ1 then ((Vector.head vec),n) else if n == 24 then (Cell{ x
         col1 = col (Vector.head vec)
         occ1 = occ (Vector.head vec)
 
+getFirstOccupiedCellBelowRow :: Vector.Vector Cell -> Int -> Int -> (Cell,Int)
+getFirstOccupiedCellBelowRow vec row n = if (occ1 && (n >= row)) then ((Vector.head vec),n) else if n == 24 then (Cell{ x = x1, y = y1, col = col1, occ = occ1}, (height+1)) else getFirstOccupiedCellBelowRow (Vector.tail vec) row (n+1) 
+    where
+        x1 = x (Vector.head vec)
+        y1 = y (Vector.head vec) + 1
+        col1 = col (Vector.head vec)
+        occ1 = occ (Vector.head vec)
         {-
 -- Given a set of columns, returns the cell, rowindex and columnindex of the lowest indexed occupied square
 getHighestSquareBelowTetromino :: Int -> Int -> Matrix Cell -> (Cell,Int,Int)
@@ -66,6 +73,15 @@ getAllHighestSquaresInRange startCol endCol gameBoard
     | otherwise = (cell, index, startCol):(getAllHighestSquaresInRange (startCol+1) endCol gameBoard)
     where
         (cell, index) = getHighestSquareInColumn (getCol startCol gameBoard)
+
+getFirstOccupiedCellsInRangeBelowRows :: Int -> Int -> [(Int,Int)] -> Matrix Cell -> [(Cell,Int,Int)]
+getFirstOccupiedCellsInRangeBelowRows startCol endCol positions gameBoard
+    | startCol == endCol = [(cell, index, startCol)]
+    | otherwise = (cell, index, startCol):(getFirstOccupiedCellsInRangeBelowRows (startCol+1) endCol positions gameBoard)
+    where
+        (cell, index) = getFirstOccupiedCellBelowRow (getCol startCol gameBoard) (y+1) 1
+        (x,y) = head positions
+        rest = tail positions
 
 -- Creates an empty game board
 initEmptyBoard :: Matrix Cell
@@ -432,6 +448,7 @@ findKick from _ [] oldPosition = (from, oldPosition)
 findKick from to (newPosition: rest) oldPosition = if checkPos newPosition then (to, newPosition) else findKick from to rest oldPosition
 
 -- given a tetromino and a board, determines if a tetromino has been hit
+{-
 hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
 hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestSquares
     where
@@ -439,6 +456,15 @@ hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestS
         (minCol, _) = head tetrominoCoordinates
         (maxCol, _) = last tetrominoCoordinates
         highestSquares = getAllHighestSquaresInRange (minCol+1) (maxCol+1) board
+-}
+
+hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
+hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestOccupiedBelow
+    where
+        tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
+        (minCol, _) = head tetrominoCoordinates
+        (maxCol, _) = last tetrominoCoordinates
+        highestOccupiedBelow = getFirstOccupiedCellsInRangeBelowRows (minCol+1) (maxCol+1) tetrominoCoordinates board
 
 -- given a list of coordinates and a list of highest cell, determines if a position has been hit
 checkPositionHit :: [(Int,Int)] -> [(Cell,Int,Int)] -> Bool
