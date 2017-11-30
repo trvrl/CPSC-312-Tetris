@@ -47,6 +47,7 @@ getMinY vec n = if occ1 then ((Vector.head vec),n) else if n == 24 then (Cell{ x
         col1 = col (Vector.head vec)
         occ1 = occ (Vector.head vec)
 
+        {-
 -- Given a set of columns, returns the cell, rowindex and columnindex of the lowest indexed occupied square
 getHighestSquareBelowTetromino :: Int -> Int -> Matrix Cell -> (Cell,Int,Int)
 getHighestSquareBelowTetromino startCol endCol gameBoard
@@ -55,6 +56,7 @@ getHighestSquareBelowTetromino startCol endCol gameBoard
     where
         (cell, index) = getHighestSquareInColumn (getCol startCol gameBoard)
         (cell1, rowindex, colindex) = getHighestSquareBelowTetromino (startCol + 1) endCol gameBoard
+        -}
 
 -- Given a set of columns, returns all the cells, row indices and column indices of the lowest indexed occuped square
 getAllHighestSquaresInRange :: Int -> Int -> Matrix Cell -> [(Cell,Int,Int)]
@@ -168,60 +170,56 @@ step elapsed tetris @ Tetris { mode = Play } = next where
 
 check :: Tetris -> Tetris
 check tetris =
-    if True
-        then tetris { state = Free }
-        else tetris { state = Contact }
+    if hasTetrominoHit (piece tetris) (gameBoard tetris)
+        then tetris { state = Contact }
+        else tetris { state = Free }
 
 merge :: Tetris -> Tetris
-merge tetris @ Tetris { state = Contact } = tetris { state = Merged }
+merge tetris @ Tetris { state = Contact } = tetris { gameBoard = newBoard, state = Merged }
+    where newBoard = addTetrominoToBoard (piece tetris) (gameBoard tetris)
 merge tetris = tetris
 
 clear :: Tetris -> Tetris
-clear tetris @ Tetris { state = Merged } = tetris { state = Cleared }
+clear tetris @ Tetris { state = Merged } = new { state = Cleared } where
+    new = checkGame tetris
 clear tetris = tetris
 
 refresh :: Tetris -> Tetris
 refresh tetris @ Tetris { state = Cleared } = tetris { piece = next, state = Free, randGen = gen } where
     (next, gen) = nextTetromino $ randGen tetris
-refresh tetris = tetris { piece = moveDown $ piece tetris, state = Free }
+refresh tetris = tetris { piece = (moveDown (piece tetris) (gameBoard tetris)), state = Free }
 
 -- TETROMINO MOVEMENT --
 
 -- moves a tetromino up in the play area
-moveUp :: Tetromino -> Tetromino
-moveUp (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
+moveUp :: Tetromino -> Matrix Cell -> Tetromino
+moveUp (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
     where newPos = move minoPos (0, -1)
 
 -- moves a tetromino down in the play area
-moveDownTime :: Float -> Tetromino -> Tetromino
-moveDownTime time (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos where
-    steps = round time 
-    newPos = move minoPos (0, steps)
-
--- moves a tetromino down in the play area
-moveDown :: Tetromino -> Tetromino
-moveDown (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
+moveDown :: Tetromino -> Matrix Cell -> Tetromino
+moveDown (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
     where newPos = move minoPos (0, 1)
 
 -- moves a tetromino right in the play area
-moveRight :: Tetromino -> Tetromino
-moveRight (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
+moveRight :: Tetromino -> Matrix Cell -> Tetromino
+moveRight (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
     where newPos = move minoPos (1, 0)
 
 -- moves a tetromino left in the play area
-moveLeft :: Tetromino -> Tetromino
-moveLeft (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos 
+moveLeft :: Tetromino -> Matrix Cell -> Tetromino
+moveLeft (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos 
     where newPos = move minoPos (-1, 0)
 
 -- rotates a tetromino right (CW) in the play area
-rotateRight :: Tetromino -> Tetromino
-rotateRight (Tetromino mino from position) = Tetromino mino newRot newPos where 
+rotateRight :: Tetromino -> Matrix Cell -> Tetromino
+rotateRight (Tetromino mino from position) board = Tetromino mino newRot newPos where 
     to = if (from < 3) then from + 1 else 0
     (newRot, newPos) = rotate mino from to position
 
 -- rotates a tetromino left (CCW) in the play area
-rotateLeft :: Tetromino -> Tetromino
-rotateLeft (Tetromino mino from position) = Tetromino mino newRot newPos where
+rotateLeft :: Tetromino -> Matrix Cell -> Tetromino
+rotateLeft (Tetromino mino from position) board = Tetromino mino newRot newPos where
     to = if (from > 0) then from - 1 else 3
     (newRot, newPos) = rotate mino from to position
 
@@ -437,8 +435,8 @@ hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
 hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestSquares
     where
         tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
-        (maxRow, maxCol) = head tetrominoCoordinates
-        (minRow, minCol) = last tetrominoCoordinates
+        (_, minCol) = head tetrominoCoordinates
+        (_, maxCol) = last tetrominoCoordinates
         highestSquares = getAllHighestSquaresInRange minCol maxCol board
 
 -- given a list of coordinates and a list of highest cell, determines if a position has been hit

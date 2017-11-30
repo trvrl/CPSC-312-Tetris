@@ -83,10 +83,10 @@ drawTetromino :: Tetromino -> Picture
 drawTetromino (Tetromino mino rotation position) = pictures squares where
     positions = posToList position
     squares = map overlay positions
-    overlay (x, y) = pictures [square, btm] where
+    overlay (x, y) = pictures [square, txt] where
         btm = color white (pictures (map toSquare (bottom mino rotation position)))
         square = color (minoColor mino) (toSquare (x, y))
-        -- txt = translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text ("(" ++ show x ++ ", " ++ show y ++ ")")))
+        txt = translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text ("(" ++ show x ++ ", " ++ show y ++ ")")))
         -- rot = text $ show rotation
 
 -- | Creates Score
@@ -119,27 +119,27 @@ toSquare (x, y) = translate (xPixel x) (yPixel y) (square squareSize)
 eventHandler :: Event -> Tetris -> Tetris
 -- Rotate Right (CW)
 eventHandler (EventKey (Char 'd') Down _ _ )  tetris @ Tetris { mode = Play } =
-    tetris { piece = (rotateRight $ piece tetris) }
+    tetris { piece = rotateRight (piece tetris) (gameBoard tetris) }
 
 -- Rotate Left (CCW)
 eventHandler (EventKey (Char 's') Down _ _ )  tetris @ Tetris { mode = Play } =
-    tetris { piece = (rotateLeft $ piece tetris) }
+    tetris { piece = rotateLeft (piece tetris) (gameBoard tetris) }
     
 -- Move Right
 eventHandler (EventKey (SpecialKey KeyRight) Down _ _ ) tetris @ Tetris { mode = Play } =
-    tetris { piece = (moveRight $ piece tetris) }
+    tetris { piece = moveRight (piece tetris) (gameBoard tetris) }
 
 -- Move Left
 eventHandler (EventKey (SpecialKey KeyLeft) Down _ _ ) tetris @ Tetris { mode = Play } =
-    tetris { piece = (moveLeft $ piece tetris) }
+    tetris { piece = moveLeft (piece tetris) (gameBoard tetris) }
 
 -- Move Down
 eventHandler (EventKey (SpecialKey KeyDown) Down _ _ ) tetris @ Tetris { mode = Play } =
-    tetris { piece = (moveDown $ piece tetris) }
+    tetris { piece = moveDown (piece tetris) (gameBoard tetris) }
 
 -- Move Down
 eventHandler (EventKey (SpecialKey KeyUp) Down _ _ ) tetris @ Tetris { mode = Play } =
-    tetris { piece = (moveUp $ piece tetris) }
+    tetris { piece = moveUp (piece tetris) (gameBoard tetris) }
     
 -- FOR TESTING - Generate random tetromino
 eventHandler (EventKey (Char 'n') Down _ _ ) tetris @ Tetris { mode = Play } =
