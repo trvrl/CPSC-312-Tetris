@@ -10,7 +10,7 @@ import Graphics.Gloss.Data.Color
 import System.Random
 import Debug.Trace
 
-initial = Tetris
+initial now = Tetris
     { points = 0
     , piece = startingPiece
     , gameBoard = initEmptyBoard
@@ -20,8 +20,20 @@ initial = Tetris
     , state = Free
     , time = 0.0
     } where
-        initGen = mkStdGen 1
+        initGen = mkStdGen now
         (startingPiece, stdGen) = nextTetromino initGen
+
+clearTetris :: Tetris -> Tetris
+clearTetris tetris = 
+    tetris { points = 0
+            , piece = next
+            , gameBoard = initEmptyBoard
+            , randGen = nextGen
+            , mode = Play
+            , rows = 0
+            , state = Free
+            , time = 0.0
+    } where (next, nextGen) = nextTetromino $ randGen tetris
 
 -- GENERAL --
 

@@ -7,12 +7,14 @@ import Graphics.Gloss.Interface.Pure.Game
 import Data.Matrix
 import System.FilePath
 import System.Directory
+import Data.Time.Clock.POSIX
 
 start :: IO ()
 start = do
+    now <- fmap round getPOSIXTime 
     currDir <- getCurrentDirectory
     logo <- loadBMP $ currDir ++ [pathSeparator] ++ "tetris_logo.bmp"
-    play window background steps initial (toPicture logo) eventHandler step
+    play window background steps (initial now) (toPicture logo) eventHandler step
 
 -- Spacing
 space = 2
@@ -156,6 +158,6 @@ eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Play } = t
 eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Pause } = tetris { mode = Play }
 
 -- Resets the game
-eventHandler (EventKey (Char 'r') Down _ _ ) tetris @ Tetris { mode = Pause } = initial
+eventHandler (EventKey (Char 'r') Down _ _ ) tetris @ Tetris { mode = Pause } = clearTetris tetris
 
 eventHandler _ tetris = tetris

@@ -24,6 +24,7 @@ executable tetris-exe
                     , random
                     , filepath
                     , directory
+                    , time
   other-modules:      Graphical
                     , Types
                     , Engine
