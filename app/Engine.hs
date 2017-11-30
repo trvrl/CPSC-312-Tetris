@@ -431,3 +431,33 @@ move position movement = newPosition where
 findKick :: Int -> Int -> [MinoPos] -> MinoPos -> (Int, MinoPos)
 findKick from _ [] oldPosition = (from, oldPosition)
 findKick from to (newPosition: rest) oldPosition = if checkPos newPosition then (to, newPosition) else findKick from to rest oldPosition
+
+-- given a tetromino and a board, determines if a tetromino has been hit
+hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
+hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestSquares
+    where
+        tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
+        (maxRow, maxCol) = head tetrominoCoordinates
+        (minRow, minCol) = last tetrominoCoordinates
+        highestSquares = getAllHighestSquaresInRange minCol maxCol board
+
+-- given a list of coordinates and a list of highest cell, determines if a position has been hit
+checkPositionHit :: [(Int,Int)] -> [(Cell,Int,Int)] -> Bool
+checkPositionHit coordinates highestSquares = foldl (\ r x -> r || x ) False [ (x == (x1 + 1) || y == y1) || x == 23 | (x,y) <- coordinates, (cell,y1,x1) <- highestSquares]
+
+-- adds a tetromino to the board
+addTetrominoToBoard :: Tetromino -> Matrix Cell -> Matrix Cell
+addTetrominoToBoard tetromino board = setElements coordinates (minoColor (mino tetromino)) board 
+    where 
+        coordinates = posToList (position tetromino)
+
+-- Sets elements on a board; for tetromino addition only
+setElements :: [(Int,Int)] -> Color -> Matrix Cell -> Matrix Cell
+setElements coordinates col board
+    | null coordinates = board
+    | otherwise = setElements rest col (setElem  newCell (y1,x1) board)
+    where
+        (x1,y1) = head coordinates
+        rest = tail coordinates
+        cell = getElem y1 x1 board
+        newCell = Cell { x = (x cell), y = (y cell), col = col, occ = True }
