@@ -5,8 +5,14 @@ import Engine
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Data.Matrix
+import System.FilePath
+import System.Directory
 
-start = play window background steps initial toPicture eventHandler step
+start :: IO ()
+start = do
+    currDir <- getCurrentDirectory
+    logo <- loadBMP $ currDir ++ [pathSeparator] ++ "tetris_logo.bmp"
+    play window background steps initial (toPicture logo) eventHandler step
 
 -- Spacing
 space = 2
@@ -16,9 +22,9 @@ padding = squareSize * 5
 
 -- Window dimensions
 vh :: Int
-vh = round squareSize * 30
+vh = round squareSize * 26 -- 22
 vw :: Int
-vw = round squareSize * 24
+vw = round squareSize * 23
 
 -- Offset window contents - lines up (0, 0) with bottom left
 dx :: Float
@@ -27,8 +33,8 @@ dy :: Float
 dy = fromIntegral vh / (-2)
 
 -- Play area offset
-xOffset = 2 * squareSize
-yOffset = 3 * squareSize
+xOffset = 1 * squareSize
+yOffset = 1 * squareSize
 
 -- Convert coordinates to real pixel
 toPixel :: Int -> Float
@@ -55,45 +61,55 @@ square :: Float -> Picture
 square x = rectangle x x
 
 -- Board background
-background = greyN 0.8
+background = white
 board_background = translate xOffset yOffset $ rectangle (10 * squareSize) (24 * squareSize)
 
 -- Creates picture from world
-toPicture :: Tetris -> Picture
-toPicture (Tetris points tetromino board _) = pictures translated where
+toPicture :: Picture -> Tetris -> Picture
+toPicture logo tetris = pictures translated where
     ps = 
         [ board_background
-        , drawBoard board
-        , drawTetromino tetromino
-        -- , translate xOffset yOffset $ color white $ line [ (0, 4 * squareSize), (200, 400) ]
-        , circle 4
+        , drawBoard $ gameBoard tetris
+        , drawTetromino $ piece tetris
+        , drawScore $ points tetris
+        , drawLogo logo
+        , drawMode $ mode tetris
+        , text $ show $ time tetris
         ]
     translated = map (translate dx dy) ps
 
--- Creates picture from tetromino
+-- | Creates picture from tetromino
 drawTetromino :: Tetromino -> Picture
 drawTetromino (Tetromino mino rotation position) = pictures squares where
     positions = posToList position
     squares = map overlay positions
-    overlay (x, y) = pictures [square, txt, rot] where
+    overlay (x, y) = pictures [square, btm] where
+        btm = color white (pictures (map toSquare (bottom mino rotation position)))
         square = color (minoColor mino) (toSquare (x, y))
-        txt = translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text ("(" ++ show x ++ ", " ++ show y ++ ")")))
-        rot = text $ show rotation
+        -- txt = translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text ("(" ++ show x ++ ", " ++ show y ++ ")")))
+        -- rot = text $ show rotation
 
-minoColor :: Mino -> Color
-minoColor I = cyan
-minoColor O = yellow
-minoColor T = violet
-minoColor S = green
-minoColor Z = red
-minoColor J = blue
-minoColor L = orange
+-- | Creates Score
+drawScore :: Int -> Picture
+drawScore points = translate (12 * squareSize) (14 * squareSize) $ pictures [box, score] where
+    score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show points
+    box = rectangle (10 * squareSize) (2 * squareSize)
+
+drawMode :: Mode -> Picture
+drawMode Play = Blank
+drawMode Pause = translate 0 (13 * squareSize) $ pictures [box, score] where
+    score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show "Paused..."
+    box = color red $ rectangle (fromIntegral vw) (2 * squareSize)
+
+-- | Creates picture from input logo
+drawLogo :: Picture -> Picture
+drawLogo logo = translate (17 * squareSize) (19 * squareSize) $ scale (0.01 * squareSize) (0.01 * squareSize) logo
 
 drawBoard :: Matrix Cell -> Picture
 drawBoard board = pictures squares where
     cells = toList board
     squares = map overlay cells
-    overlay (Cell x y col occ) = pictures [square, txt] where
+    overlay (Cell x y col occ) = pictures [square] where
         square = color col (toSquare (x, y))
         txt = color white (translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text $ show occ)))
 
@@ -102,32 +118,48 @@ toSquare (x, y) = translate (xPixel x) (yPixel y) (square squareSize)
 
 eventHandler :: Event -> Tetris -> Tetris
 -- Rotate Right (CW)
-eventHandler (EventKey (Char 'd') Down _ _ ) (Tetris x tetromino board randGen) = 
-    Tetris x (rotateRight tetromino) board randGen
+eventHandler (EventKey (Char 'd') Down _ _ )  tetris @ Tetris { mode = Play } =
+    tetris { piece = (rotateRight $ piece tetris) }
 
 -- Rotate Left (CCW)
-eventHandler (EventKey (Char 's') Down _ _ ) (Tetris x tetromino board randGen) =
-    Tetris x (rotateLeft tetromino) board randGen
+eventHandler (EventKey (Char 's') Down _ _ )  tetris @ Tetris { mode = Play } =
+    tetris { piece = (rotateLeft $ piece tetris) }
     
 -- Move Right
-eventHandler (EventKey (SpecialKey KeyRight) Down _ _ ) (Tetris x tetromino board randGen) =
-    Tetris x (moveRight tetromino) board randGen
+eventHandler (EventKey (SpecialKey KeyRight) Down _ _ ) tetris @ Tetris { mode = Play } =
+    tetris { piece = (moveRight $ piece tetris) }
 
 -- Move Left
-eventHandler (EventKey (SpecialKey KeyLeft) Down _ _ ) (Tetris x tetromino board randGen) =
-    Tetris x (moveLeft tetromino) board randGen
+eventHandler (EventKey (SpecialKey KeyLeft) Down _ _ ) tetris @ Tetris { mode = Play } =
+    tetris { piece = (moveLeft $ piece tetris) }
 
 -- Move Down
-eventHandler (EventKey (SpecialKey KeyDown) Down _ _ ) (Tetris x tetromino board randGen) =
-    Tetris x (moveDown tetromino) board randGen
+eventHandler (EventKey (SpecialKey KeyDown) Down _ _ ) tetris @ Tetris { mode = Play } =
+    tetris { piece = (moveDown $ piece tetris) }
 
 -- Move Down
-eventHandler (EventKey (SpecialKey KeyUp) Down _ _ ) (Tetris x tetromino board randGen) =
-    Tetris x (moveUp tetromino) board randGen
+eventHandler (EventKey (SpecialKey KeyUp) Down _ _ ) tetris @ Tetris { mode = Play } =
+    tetris { piece = (moveUp $ piece tetris) }
     
 -- FOR TESTING - Generate random tetromino
-eventHandler (EventKey (Char 'n') Down _ _ ) (Tetris x _ board randGen) = 
-    Tetris x next board newGen where
-        (next, newGen) = nextTetromino randGen
+eventHandler (EventKey (Char 'n') Down _ _ ) tetris @ Tetris { mode = Play } =
+    tetris { piece = next, randGen = newGen } where (next, newGen) = nextTetromino $ randGen tetris
+
+-- FOR TESTING - Increases drop speed
+eventHandler (EventKey (Char '=') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { speed = newSpeed } where
+    current = speed tetris
+    newSpeed = if (current < 13) then current + 1 else current
+
+-- FOR TESTING - Decreases drop speed
+eventHandler (EventKey (Char '-') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { speed = newSpeed } where
+    current = speed tetris
+    newSpeed = if (current > 0) then current - 1 else current
+
+-- Pauses the game
+eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { mode = Pause }
+eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Pause } = tetris { mode = Play }
+
+-- Resets the game
+eventHandler (EventKey (Char 'r') Down _ _ ) tetris @ Tetris { mode = Pause } = initial
 
 eventHandler _ tetris = tetris

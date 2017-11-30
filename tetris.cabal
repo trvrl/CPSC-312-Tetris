@@ -22,6 +22,8 @@ executable tetris-exe
                     , matrix
                     , vector
                     , random
+                    , filepath
+                    , directory
   other-modules:      Graphical
                     , Types
                     , Engine

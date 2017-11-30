@@ -9,11 +9,27 @@ data Tetris = Tetris {
     points :: Int,
     piece :: Tetromino,
     gameBoard :: Matrix Cell,
-    randGen :: StdGen
+    randGen :: StdGen,
+    mode :: Mode,
+    speed :: Int,
+    state :: State,
+    time :: Float
 }
+
+-- Play Mode either playing or pausing
+data Mode = Play | Pause deriving Enum
 
 -- Tetromino Shape/Type
 data Mino = I | O | T | S | Z | J | L deriving (Enum, Eq)
+
+-- Board State
+data State =
+    Free
+    | Contact
+    | Merged
+    | Cleared
+    deriving (Enum)
+
 
 -- Tetromino - a Tetris piece
 data Tetromino = Tetromino {

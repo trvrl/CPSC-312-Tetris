@@ -9,12 +9,23 @@ import qualified Data.Vector as Vector
 import Graphics.Gloss.Data.Color
 import System.Random
 
-initial = Tetris 0 (tetromino L) initEmptyBoard (mkStdGen 1)
+initial = Tetris
+    { points = 0
+    , piece = startingPiece
+    , gameBoard = initEmptyBoard
+    , randGen = stdGen
+    , mode = Play
+    , speed = 1
+    , state = Free
+    , time = 0.0
+    } where
+        initGen = mkStdGen 1
+        (startingPiece, stdGen) = nextTetromino initGen
 
 -- GENERAL --
 
 steps :: Int
-steps = 2
+steps = 24
 
 height, heightEnd, width :: Int
 width = 10
@@ -30,7 +41,7 @@ getHighestSquareInColumn vec =  getMinY vec 1
 -- Returns the cell and index of the lowest indexed occupied cell
 getMinY :: Vector.Vector Cell -> Int -> (Cell,Int)
 getMinY vec n = if occ1 then ((Vector.head vec),n) else if n == 24 then (Cell{ x = x1, y = y1, col = col1, occ = occ1}, (height+1)) else getMinY (Vector.tail vec) (n+1)
-    where 
+    where
         x1 = x (Vector.head vec)
         y1 = y (Vector.head vec) + 1
         col1 = col (Vector.head vec)
@@ -59,7 +70,8 @@ initEmptyBoard = matrix height width (\(y1,x1) -> Cell{ x = x1 - 1, y = y1 - 1, 
 
 -- Checks the game for things to be updated
 checkGame :: Tetris -> Tetris
-checkGame (Tetris points tetromino board randGen) = (Tetris points tetromino (clearFilledRows height board) randGen)
+checkGame tetris @ Tetris { mode = Play } = tetris { gameBoard = (clearFilledRows height $ gameBoard tetris) }
+checkGame tetris @ Tetris { mode = Pause } = tetris
 
 -- Given a board, checks to see if the game has been lost
 gameLost :: Matrix Cell -> Bool
@@ -141,19 +153,55 @@ checkRow vec = if null vec then True else occ1 && (checkRow (Vector.tail vec))
     where 
         occ1 = occ (Vector.head vec)
 
+
+-- GAME ENGINE --
+
 -- iterates the board to a new state every step of play
 step :: Float -> Tetris -> Tetris
-step _ (Tetris points tetromino board randGen) = Tetris points tetromino board randGen
+step time tetris @ Tetris { mode = Pause } = tetris
+step elapsed tetris @ Tetris { mode = Play } = next where
+    timePassed = elapsed + (time tetris)
+    gravity = fromIntegral (15 - speed tetris) / 15
+    next = if timePassed > gravity
+        then (check . merge . clear . refresh) tetris { time = 0 }
+        else tetris { time = timePassed }
+
+check :: Tetris -> Tetris
+check tetris =
+    if True
+        then tetris { state = Free }
+        else tetris { state = Contact }
+
+merge :: Tetris -> Tetris
+merge tetris @ Tetris { state = Contact } = tetris { state = Merged }
+merge tetris = tetris
+
+clear :: Tetris -> Tetris
+clear tetris @ Tetris { state = Merged } = tetris { state = Cleared }
+clear tetris = tetris
+
+refresh :: Tetris -> Tetris
+refresh tetris @ Tetris { state = Cleared } = tetris { piece = next, state = Free, randGen = gen } where
+    (next, gen) = nextTetromino $ randGen tetris
+refresh tetris = tetris { piece = moveDown $ piece tetris, state = Free }
+
+-- TETROMINO MOVEMENT --
 
 -- moves a tetromino up in the play area
 moveUp :: Tetromino -> Tetromino
 moveUp (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
-    where newPos = move minoPos(0, -1)
+    where newPos = move minoPos (0, -1)
+
+-- moves a tetromino down in the play area
+moveDownTime :: Float -> Tetromino -> Tetromino
+moveDownTime time (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos where
+    steps = round time 
+    newPos = move minoPos (0, steps)
 
 -- moves a tetromino down in the play area
 moveDown :: Tetromino -> Tetromino
 moveDown (Tetromino mino rotation minoPos) = Tetromino mino rotation newPos
-    where newPos = move minoPos(0, 1)
+    where newPos = move minoPos (0, 1)
 
 -- moves a tetromino right in the play area
 moveRight :: Tetromino -> Tetromino
@@ -226,7 +274,7 @@ minoPos L _ (x, y) = ( (x, y), (x - 1, y), (x + 1, y - 1), (x + 1, y) )
 -- | Returned positions are in ordered in ascending x coordinates
 bottom :: Mino -> Int -> MinoPos -> [Coord]
 bottom I 1 (_, _, _, d) = [d]
-bottom I 2 (a, b, c, d) = [d, b, c, d]
+bottom I 2 (a, b, c, d) = [d, c, b, a]
 bottom I 3 (a, b, c, d) = [a]
 bottom I _ (a, b, c, d) = [a, b, c, d]
 
@@ -305,6 +353,15 @@ initPos :: Mino -> MinoPos
 initPos I = minoPos I 0 (3, 3)
 initPos O = minoPos O 0 (4, 2)
 initPos mino = minoPos mino 0 (4, 3)
+
+minoColor :: Mino -> Color
+minoColor I = cyan
+minoColor O = yellow
+minoColor T = violet
+minoColor S = green
+minoColor Z = red
+minoColor J = blue
+minoColor L = orange
 
 -- | Generates a Random Tetromino
 -- | Takes a random number generator and returns a random tetromino and the generator
