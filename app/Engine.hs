@@ -16,7 +16,7 @@ initial = Tetris
     , gameBoard = initEmptyBoard
     , randGen = stdGen
     , mode = Play
-    , speed = 1
+    , rows = 0
     , state = Free
     , time = 0.0
     } where
@@ -55,16 +55,6 @@ getFirstOccupiedCellBelowRow vec row n = if (occ1 && (n >= row)) then ((Vector.h
         y1 = y (Vector.head vec) + 1
         col1 = col (Vector.head vec)
         occ1 = occ (Vector.head vec)
-        {-
--- Given a set of columns, returns the cell, rowindex and columnindex of the lowest indexed occupied square
-getHighestSquareBelowTetromino :: Int -> Int -> Matrix Cell -> (Cell,Int,Int)
-getHighestSquareBelowTetromino startCol endCol gameBoard
-    | startCol == endCol = (cell, index, startCol)
-    | otherwise = if index <= rowindex then (cell, index, startCol) else (cell1, rowindex, colindex)
-    where
-        (cell, index) = getHighestSquareInColumn (getCol startCol gameBoard)
-        (cell1, rowindex, colindex) = getHighestSquareBelowTetromino (startCol + 1) endCol gameBoard
-        -}
 
 -- Given a set of columns, returns all the cells, row indices and column indices of the lowest indexed occuped square
 getAllHighestSquaresInRange :: Int -> Int -> Matrix Cell -> [(Cell,Int,Int)]
@@ -96,12 +86,18 @@ checkGame tetris @ Tetris { mode = Pause } = tetris
 gameLost :: Matrix Cell -> Bool
 gameLost board = foldr (\ (cell,rowNum,colNum) r -> if rowNum < 5 then True || r else False || r ) False (getAllHighestSquaresInRange 1 width board) 
 
--- Returns the points scored
-getScore :: Matrix Cell -> Int
-getScore board
-    | rowsCleared < 4 = 100 * rowsCleared
-    | rowsCleared >= 4 = 200 * rowsCleared
-    where rowsCleared = length(checkNRows height board)
+-- Returns the points scored and number of rows cleared
+getScore :: Tetris -> (Int, Int)
+getScore tetris =
+    case rowsCleared of
+    0 -> (0, 0)
+    1 -> (100 * level, rowsCleared)
+    2 -> (300 * level, rowsCleared)
+    3 -> (500 * level, rowsCleared)
+    _ -> (800 * level, rowsCleared)
+    where
+        level = 1 + div (rows tetris) 10
+        rowsCleared = length(checkNRows height $ gameBoard tetris)
 
 -- Removes empty rows on a board
 clearFilledRows :: Int -> Matrix Cell -> Matrix Cell
@@ -180,7 +176,8 @@ step :: Float -> Tetris -> Tetris
 step time tetris @ Tetris { mode = Pause } = tetris
 step elapsed tetris @ Tetris { mode = Play } = next where
     timePassed = elapsed + (time tetris)
-    gravity = fromIntegral (15 - speed tetris) / 15
+    level = 1 + div (rows tetris) 10
+    gravity = fromIntegral (15 - level) / 15
     next = if timePassed > gravity
         then (refresh . clear. merge . check) tetris { time = 0 }
         else tetris { time = timePassed }
@@ -197,48 +194,44 @@ merge tetris @ Tetris { state = Contact } = tetris { gameBoard = newBoard, state
 merge tetris = tetris
 
 clear :: Tetris -> Tetris
-clear tetris @ Tetris { state = Merged } = new { state = Cleared } where
+clear tetris @ Tetris { state = Merged } = new { state = Cleared, points = points tetris + score, rows = rows tetris + cleared } where
     new = checkGame tetris
+    (score, cleared) = getScore tetris
 clear tetris = tetris
 
 refresh :: Tetris -> Tetris
-refresh tetris @ Tetris { state = Cleared } = tetris { piece = next, state = Free, randGen = gen } where
-    (next, gen) = nextTetromino $ randGen tetris
+refresh tetris @ Tetris { state = Cleared } = if checkPos (position next) (gameBoard tetris) then tetris { piece = next, state = Free, randGen = gen } else tetris { state = Lost, mode = Pause }
+    where (next, gen) = nextTetromino $ randGen tetris
 refresh tetris = tetris { piece = (moveDown (piece tetris) (gameBoard tetris)), state = Free }
 
 -- TETROMINO MOVEMENT --
 
--- moves a tetromino up in the play area
-moveUp :: Tetromino -> Matrix Cell -> Tetromino
-moveUp (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
-    where newPos = move minoPos (0, -1)
-
 -- moves a tetromino down in the play area
 moveDown :: Tetromino -> Matrix Cell -> Tetromino
 moveDown (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
-    where newPos = move minoPos (0, 1)
+    where newPos = move minoPos board (0, 1)
 
 -- moves a tetromino right in the play area
 moveRight :: Tetromino -> Matrix Cell -> Tetromino
 moveRight (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos
-    where newPos = move minoPos (1, 0)
+    where newPos = move minoPos board (1, 0)
 
 -- moves a tetromino left in the play area
 moveLeft :: Tetromino -> Matrix Cell -> Tetromino
 moveLeft (Tetromino mino rotation minoPos) board = Tetromino mino rotation newPos 
-    where newPos = move minoPos (-1, 0)
+    where newPos = move minoPos board (-1, 0)
 
 -- rotates a tetromino right (CW) in the play area
 rotateRight :: Tetromino -> Matrix Cell -> Tetromino
 rotateRight (Tetromino mino from position) board = Tetromino mino newRot newPos where 
     to = if (from < 3) then from + 1 else 0
-    (newRot, newPos) = rotate mino from to position
-
+    (newRot, newPos) = rotate mino from to board position
+ 
 -- rotates a tetromino left (CCW) in the play area
 rotateLeft :: Tetromino -> Matrix Cell -> Tetromino
 rotateLeft (Tetromino mino from position) board = Tetromino mino newRot newPos where
     to = if (from > 0) then from - 1 else 3
-    (newRot, newPos) = rotate mino from to position
+    (newRot, newPos) = rotate mino from to board position
 
 
 -- TETROMINO POSITION DEFINITIONS --
@@ -396,15 +389,16 @@ posToList (a, b, c, d) = [a, b, c, d]
 
 -- | Checks if a square coordinate is legal
 -- | Check left wall, right wall, and floor
-isLegal :: Coord -> Bool
-isLegal (x, y) = left && right && floor where
+isLegal :: Coord -> Matrix Cell -> Bool
+isLegal (x, y) board = left && right && floor && not (occ cell) where
     left = x > -1
     right = x < 10
     floor = y < 24
+    cell = getElem (y + 1) (x + 1) board
 
 -- | Checks that all mino positions are legal
-checkPos :: MinoPos -> Bool
-checkPos (a, b, c, d) = isLegal a && isLegal b && isLegal c && isLegal d
+checkPos :: MinoPos -> Matrix Cell -> Bool
+checkPos (a, b, c, d) board = isLegal a board && isLegal b board && isLegal c board && isLegal d board
 
 
 -- TETROMINO MOVEMENT BEHAVIOUR --
@@ -420,8 +414,8 @@ shift ((ax, ay), (bx, by), (cx, cy), (dx, dy)) (x, y) = (a, b, c, d) where
 
 -- | Rotates Tetromino and ensures rotation is legal
 -- | IF no shifted rotations are legal, the tetrmomino is not rotated
-rotate :: Mino -> Int -> Int -> MinoPos -> (Int, MinoPos)
-rotate mino from to position = newPosition where
+rotate :: Mino -> Int -> Int -> Matrix Cell -> MinoPos -> (Int, MinoPos)
+rotate mino from to board position = newPosition where
     (aa, _, _, _) = position
     -- | Aligns tetromino rotation
     a = alignRotation mino from to aa
@@ -431,33 +425,23 @@ rotate mino from to position = newPosition where
     kicks = kick mino from to
     -- | Shifted rotations to check
     kicked = map (shift rotated) kicks
-    newPosition = findKick from to kicked position
+    newPosition = findKick from to kicked board position
 
 -- | Moves Tetromino based on coordinate shift and ensures move is legal
-move :: MinoPos -> Coord -> MinoPos
-move position movement = newPosition where
+move :: MinoPos -> Matrix Cell -> Coord -> MinoPos
+move position board movement = newPosition where
     -- | Shift tetromino
     shifted = shift position movement
     -- | Check tetromino positions
-    newPosition = if (checkPos shifted) then shifted else position
+    newPosition = if (checkPos shifted board) then shifted else position
 
 -- | Finds the first shifted ("kicked") rotation position that is legal and the new rotation
 -- | If no rotations are legal, the old position and rotation are returned
-findKick :: Int -> Int -> [MinoPos] -> MinoPos -> (Int, MinoPos)
-findKick from _ [] oldPosition = (from, oldPosition)
-findKick from to (newPosition: rest) oldPosition = if checkPos newPosition then (to, newPosition) else findKick from to rest oldPosition
+findKick :: Int -> Int -> [MinoPos] -> Matrix Cell -> MinoPos -> (Int, MinoPos)
+findKick from _ [] _ oldPosition = (from, oldPosition)
+findKick from to (newPosition: rest) board oldPosition = if checkPos newPosition board then (to, newPosition) else findKick from to rest board oldPosition
 
 -- given a tetromino and a board, determines if a tetromino has been hit
-{-
-hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
-hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestSquares
-    where
-        tetrominoCoordinates = bottom (mino tetromino) (rotation tetromino) (position tetromino)
-        (minCol, _) = head tetrominoCoordinates
-        (maxCol, _) = last tetrominoCoordinates
-        highestSquares = getAllHighestSquaresInRange (minCol+1) (maxCol+1) board
--}
-
 hasTetrominoHit :: Tetromino -> Matrix Cell -> Bool
 hasTetrominoHit tetromino board = checkPositionHit tetrominoCoordinates highestOccupiedBelow
     where

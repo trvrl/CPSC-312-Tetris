@@ -22,7 +22,7 @@ padding = squareSize * 5
 
 -- Window dimensions
 vh :: Int
-vh = round squareSize * 26 -- 22
+vh = round squareSize * 22
 vw :: Int
 vw = round squareSize * 23
 
@@ -64,6 +64,10 @@ square x = rectangle x x
 background = white
 board_background = translate xOffset yOffset $ rectangle (10 * squareSize) (24 * squareSize)
 
+-- Spawn overlay
+spawn :: Picture
+spawn = translate (xPixel 0) (yPixel 3) $ color white $ rectangle (squareSize * 10) (squareSize * 4)
+
 -- Creates picture from world
 toPicture :: Picture -> Tetris -> Picture
 toPicture logo tetris = pictures translated where
@@ -73,8 +77,9 @@ toPicture logo tetris = pictures translated where
         , drawTetromino $ piece tetris
         , drawScore $ points tetris
         , drawLogo logo
-        , drawMode $ mode tetris
-        , text $ show $ time tetris
+        , drawLevel $ rows tetris
+        , spawn
+        , drawMode (mode tetris) (state tetris)
         ]
     translated = map (translate dx dy) ps
 
@@ -82,23 +87,30 @@ toPicture logo tetris = pictures translated where
 drawTetromino :: Tetromino -> Picture
 drawTetromino (Tetromino mino rotation position) = pictures squares where
     positions = posToList position
-    squares = map overlay positions
-    overlay (x, y) = pictures [square, txt] where
-        btm = color white (pictures (map toSquare (bottom mino rotation position)))
-        square = color (minoColor mino) (toSquare (x, y))
-        txt = translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text ("(" ++ show x ++ ", " ++ show y ++ ")")))
-        -- rot = text $ show rotation
+    squares = map square positions
+    square (x, y) = color (minoColor mino) (toSquare (x, y))
 
 -- | Creates Score
 drawScore :: Int -> Picture
 drawScore points = translate (12 * squareSize) (14 * squareSize) $ pictures [box, score] where
     score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show points
     box = rectangle (10 * squareSize) (2 * squareSize)
+    
+-- | Creates Level
+drawLevel :: Int -> Picture
+drawLevel rows = translate (12 * squareSize) (10 * squareSize) $ pictures [box, score] where
+    level = 1 + div rows 10
+    score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ (id "Level " ++ show level)
+    box = color green $ rectangle (10 * squareSize) (2 * squareSize)
 
-drawMode :: Mode -> Picture
-drawMode Play = Blank
-drawMode Pause = translate 0 (13 * squareSize) $ pictures [box, score] where
-    score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show "Paused..."
+-- | Creates prompts for when the game is paused or the game is over
+drawMode :: Mode -> State -> Picture
+drawMode Play _ = Blank
+drawMode Pause Lost = translate 0 (13 * squareSize) $ pictures [box, msg] where
+    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.01 * squareSize) (0.01 * squareSize) $ text $ show "You Lost. Press r to play again."
+    box = color red $ rectangle (fromIntegral vw) (2 * squareSize)
+drawMode Pause _ = translate 0 (13 * squareSize) $ pictures [box, msg] where
+    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show "Paused..."
     box = color red $ rectangle (fromIntegral vw) (2 * squareSize)
 
 -- | Creates picture from input logo
@@ -108,10 +120,8 @@ drawLogo logo = translate (17 * squareSize) (19 * squareSize) $ scale (0.01 * sq
 drawBoard :: Matrix Cell -> Picture
 drawBoard board = pictures squares where
     cells = toList board
-    squares = map overlay cells
-    overlay (Cell x y col occ) = pictures [square] where
-        square = color col (toSquare (x, y))
-        txt = color white (translate (xPixel x) (yPixel y) (scale 0.1 0.1 (text $ show occ)))
+    squares = map square cells
+    square (Cell x y col occ) = color col (toSquare (x, y))
 
 toSquare :: Coord -> Picture
 toSquare (x, y) = translate (xPixel x) (yPixel y) (square squareSize)
@@ -136,24 +146,10 @@ eventHandler (EventKey (SpecialKey KeyLeft) Down _ _ ) tetris @ Tetris { mode = 
 -- Move Down
 eventHandler (EventKey (SpecialKey KeyDown) Down _ _ ) tetris @ Tetris { mode = Play } =
     tetris { piece = moveDown (piece tetris) (gameBoard tetris) }
-
--- Move Down
-eventHandler (EventKey (SpecialKey KeyUp) Down _ _ ) tetris @ Tetris { mode = Play } =
-    tetris { piece = moveUp (piece tetris) (gameBoard tetris) }
     
 -- FOR TESTING - Generate random tetromino
 eventHandler (EventKey (Char 'n') Down _ _ ) tetris @ Tetris { mode = Play } =
     tetris { piece = next, randGen = newGen } where (next, newGen) = nextTetromino $ randGen tetris
-
--- FOR TESTING - Increases drop speed
-eventHandler (EventKey (Char '=') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { speed = newSpeed } where
-    current = speed tetris
-    newSpeed = if (current < 13) then current + 1 else current
-
--- FOR TESTING - Decreases drop speed
-eventHandler (EventKey (Char '-') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { speed = newSpeed } where
-    current = speed tetris
-    newSpeed = if (current > 0) then current - 1 else current
 
 -- Pauses the game
 eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { mode = Pause }

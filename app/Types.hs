@@ -11,7 +11,7 @@ data Tetris = Tetris {
     gameBoard :: Matrix Cell,
     randGen :: StdGen,
     mode :: Mode,
-    speed :: Int,
+    rows :: Int,
     state :: State,
     time :: Float
 }
@@ -28,6 +28,7 @@ data State =
     | Contact
     | Merged
     | Cleared
+    | Lost
     deriving (Enum)
 
 
