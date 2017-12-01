@@ -81,7 +81,7 @@ getFirstOccupiedCellsInRangeBelowRows startCol endCol positions gameBoard
     | startCol == endCol = [(cell, index, startCol)]
     | otherwise = (cell, index, startCol):(getFirstOccupiedCellsInRangeBelowRows (startCol+1) endCol positions gameBoard)
     where
-        (cell, index) = getFirstOccupiedCellBelowRow (getCol startCol gameBoard) (y+1) 1
+        (cell, index) = getFirstOccupiedCellBelowRow (getCol startCol gameBoard) y 1
         (x,y) = head positions
         rest = tail positions
 
