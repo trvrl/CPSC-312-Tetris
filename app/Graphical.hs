@@ -14,7 +14,8 @@ start = do
     now <- fmap round getPOSIXTime 
     currDir <- getCurrentDirectory
     logo <- loadBMP $ currDir ++ [pathSeparator] ++ "tetris_logo.bmp"
-    play window background steps (initial now) (toPicture logo) eventHandler step
+    instructions <- loadBMP $ currDir ++ [pathSeparator] ++ "instructions.bmp"
+    play window background steps (initial now) (toPicture logo instructions) eventHandler step
 
 -- Spacing
 space = 2
@@ -71,8 +72,8 @@ spawn :: Picture
 spawn = translate (xPixel 0) (yPixel 3) $ color white $ rectangle (squareSize * 10) (squareSize * 4)
 
 -- Creates picture from world
-toPicture :: Picture -> Tetris -> Picture
-toPicture logo tetris = pictures translated where
+toPicture :: Picture -> Picture -> Tetris -> Picture
+toPicture logo instructions tetris = pictures translated where
     ps = 
         [ board_background
         , drawBoard $ gameBoard tetris
@@ -80,6 +81,7 @@ toPicture logo tetris = pictures translated where
         , drawScore $ points tetris
         , drawLogo logo
         , drawLevel $ rows tetris
+        , drawInstructions instructions
         , spawn
         , drawMode (mode tetris) (state tetris)
         ]
@@ -94,30 +96,33 @@ drawTetromino (Tetromino mino rotation position) = pictures squares where
 
 -- | Creates Score
 drawScore :: Int -> Picture
-drawScore points = translate (12 * squareSize) (14 * squareSize) $ pictures [box, score] where
+drawScore points = translate (xPixel 11) (yPixel 10) $ pictures [box, score] where
     score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show points
-    box = rectangle (10 * squareSize) (2 * squareSize)
+    box = color (greyN 0.7) $ rectangle (10 * squareSize) (2 * squareSize)
     
 -- | Creates Level
 drawLevel :: Int -> Picture
-drawLevel rows = translate (12 * squareSize) (10 * squareSize) $ pictures [box, score] where
+drawLevel rows = translate (xPixel 11) (yPixel 13) $ pictures [box, score] where
     level = 1 + div rows 10
     score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ (id "Level " ++ show level)
-    box = color green $ rectangle (10 * squareSize) (2 * squareSize)
+    box = color (greyN 0.7) $ rectangle (10 * squareSize) (2 * squareSize)
+
+drawInstructions :: Picture -> Picture
+drawInstructions instructions = translate (xPixel 16) (yPixel 20) $ scale (0.013 * squareSize) (0.013 * squareSize) instructions
 
 -- | Creates prompts for when the game is paused or the game is over
 drawMode :: Mode -> State -> Picture
 drawMode Play _ = Blank
 drawMode Pause Lost = translate 0 (13 * squareSize) $ pictures [box, msg] where
-    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.01 * squareSize) (0.01 * squareSize) $ text $ show "You Lost. Press r to play again."
+    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.01 * squareSize) (0.01 * squareSize) $ text $ id "You Lost. Press r to play again."
     box = color red $ rectangle (fromIntegral vw) (2 * squareSize)
 drawMode Pause _ = translate 0 (13 * squareSize) $ pictures [box, msg] where
-    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ show "Paused..."
+    msg = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ id "Paused..."
     box = color red $ rectangle (fromIntegral vw) (2 * squareSize)
 
 -- | Creates picture from input logo
 drawLogo :: Picture -> Picture
-drawLogo logo = translate (17 * squareSize) (19 * squareSize) $ scale (0.01 * squareSize) (0.01 * squareSize) logo
+drawLogo logo = translate (xPixel 16) (yPixel 5) $ scale (0.01 * squareSize) (0.01 * squareSize) logo
 
 drawBoard :: Matrix Cell -> Picture
 drawBoard board = pictures squares where
