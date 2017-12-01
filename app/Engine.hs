@@ -164,7 +164,7 @@ step time tetris @ Tetris { mode = Pause } = tetris
 step elapsed tetris @ Tetris { mode = Play } = next where
     timePassed = elapsed + (time tetris)
     level = 1 + div (rows tetris) 10
-    gravity = fromIntegral (15 - level) / 15
+    gravity = fromIntegral (15 - level) / 20
     next = if timePassed > gravity
         then (refresh . clear. merge . check) tetris { time = 0 }
         else tetris { time = timePassed }
