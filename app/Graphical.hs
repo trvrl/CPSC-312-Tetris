@@ -169,6 +169,7 @@ eventHandler (EventKey (Char 'n') Down _ _ ) tetris @ Tetris { mode = Play } =
 
 -- Pauses the game
 eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Play } = tetris { mode = Pause }
+eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Pause, state = Lost } = tetris
 eventHandler (EventKey (Char 'p') Down _ _ ) tetris @ Tetris { mode = Pause } = tetris { mode = Play }
 
 -- Resets the game
