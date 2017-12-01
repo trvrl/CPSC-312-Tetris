@@ -55,9 +55,13 @@ yPixel y = yOffset + (squareSize * 23) - (squareSize * (fromIntegral y))
 window :: Display
 window = InWindow "Tetris" (vw, vh) (0, 0)
 
+-- Regtangle Path
+recPath :: Float -> Float -> Path
+recPath x y = [ (0, 0), (x, 0), (x, y), (0, y), (0, 0) ]
+
 -- Rectangle
 rectangle :: Float -> Float -> Picture
-rectangle x y = Polygon [ (0, 0), (x, 0), (x, y), (0, y), (0, 0) ]
+rectangle x y = Polygon $ recPath x y
 
 -- Square
 square :: Float -> Picture
@@ -69,7 +73,7 @@ board_background = translate xOffset yOffset $ rectangle (10 * squareSize) (24 *
 
 -- Spawn overlay
 spawn :: Picture
-spawn = translate (xPixel 0) (yPixel 3) $ color white $ rectangle (squareSize * 10) (squareSize * 4)
+spawn = translate (xPixel (-1)) (yPixel 3) $ color white $ rectangle (squareSize * 11) (squareSize * 4)
 
 -- Creates picture from world
 toPicture :: Picture -> Picture -> Tetris -> Picture
@@ -92,7 +96,7 @@ drawTetromino :: Tetromino -> Picture
 drawTetromino (Tetromino mino rotation position) = pictures squares where
     positions = posToList position
     squares = map square positions
-    square (x, y) = color (minoColor mino) (toSquare (x, y))
+    square (x, y) = toSquare (x, y) (minoColor mino)
 
 -- | Creates Score
 drawScore :: Int -> Picture
@@ -106,7 +110,7 @@ drawLevel rows = translate (xPixel 11) (yPixel 13) $ pictures [box, score] where
     level = 1 + div rows 10
     score = translate (0.25 * squareSize) (0.25 * squareSize) $ color white $ scale (0.015 * squareSize) (0.015 * squareSize) $ text $ (id "Level " ++ show level)
     box = color (greyN 0.7) $ rectangle (10 * squareSize) (2 * squareSize)
-
+-- | Creates Instructions
 drawInstructions :: Picture -> Picture
 drawInstructions instructions = translate (xPixel 16) (yPixel 20) $ scale (0.013 * squareSize) (0.013 * squareSize) instructions
 
@@ -124,15 +128,20 @@ drawMode Pause _ = translate 0 (13 * squareSize) $ pictures [box, msg] where
 drawLogo :: Picture -> Picture
 drawLogo logo = translate (xPixel 16) (yPixel 5) $ scale (0.01 * squareSize) (0.01 * squareSize) logo
 
+-- | Creates the board
 drawBoard :: Matrix Cell -> Picture
 drawBoard board = pictures squares where
     cells = toList board
     squares = map square cells
-    square (Cell x y col occ) = color col (toSquare (x, y))
+    square (Cell x y col occ) = toSquare (x, y) col
 
-toSquare :: Coord -> Picture
-toSquare (x, y) = translate (xPixel x) (yPixel y) (square squareSize)
+-- | Creates a square from coorindates
+toSquare :: Coord -> Color -> Picture
+toSquare (x, y) col = translate (xPixel x) (yPixel y) $ pictures [sqr, outline] where
+    sqr = color col $ square squareSize
+    outline = lineLoop $ recPath squareSize squareSize
 
+-- | Handles key events
 eventHandler :: Event -> Tetris -> Tetris
 -- Rotate Right (CW)
 eventHandler (EventKey (Char 'd') Down _ _ )  tetris @ Tetris { mode = Play } =
