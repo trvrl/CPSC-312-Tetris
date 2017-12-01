@@ -40,26 +40,13 @@ clearTetris tetris =
 steps :: Int
 steps = 24
 
-height, heightEnd, width :: Int
+height, width :: Int
 width = 10
 height = 24
-heightEnd = 24
 
 -- PLAY AREA --
 
--- Takes in a Matrix column (as a Vector) and returns the occupied cell with the smallest y value and its index.
-getHighestSquareInColumn :: Vector.Vector Cell -> (Cell, Int)
-getHighestSquareInColumn vec =  getMinY vec 1
-
--- Returns the cell and index of the lowest indexed occupied cell
-getMinY :: Vector.Vector Cell -> Int -> (Cell,Int)
-getMinY vec n = if occ1 then ((Vector.head vec),n) else if n == 24 then (Cell{ x = x1, y = y1, col = col1, occ = occ1}, (height+1)) else getMinY (Vector.tail vec) (n+1)
-    where
-        x1 = x (Vector.head vec)
-        y1 = y (Vector.head vec) + 1
-        col1 = col (Vector.head vec)
-        occ1 = occ (Vector.head vec)
-
+-- Returns the first individual cell that is occupied below a given row for a given column
 getFirstOccupiedCellBelowRow :: Vector.Vector Cell -> Int -> Int -> (Cell,Int)
 getFirstOccupiedCellBelowRow vec row n = if (occ1 && (n >= row)) then ((Vector.head vec),n) else if n == 24 then (Cell{ x = x1, y = y1, col = col1, occ = occ1}, (height+1)) else getFirstOccupiedCellBelowRow (Vector.tail vec) row (n+1) 
     where
@@ -68,14 +55,7 @@ getFirstOccupiedCellBelowRow vec row n = if (occ1 && (n >= row)) then ((Vector.h
         col1 = col (Vector.head vec)
         occ1 = occ (Vector.head vec)
 
--- Given a set of columns, returns all the cells, row indices and column indices of the lowest indexed occuped square
-getAllHighestSquaresInRange :: Int -> Int -> Matrix Cell -> [(Cell,Int,Int)]
-getAllHighestSquaresInRange startCol endCol gameBoard
-    | startCol == endCol = [(cell, index, startCol)]
-    | otherwise = (cell, index, startCol):(getAllHighestSquaresInRange (startCol+1) endCol gameBoard)
-    where
-        (cell, index) = getHighestSquareInColumn (getCol startCol gameBoard)
-
+-- Returns a list of the first occupied square below a given row and range of columns
 getFirstOccupiedCellsInRangeBelowRows :: Int -> Int -> [(Int,Int)] -> Matrix Cell -> [(Cell,Int,Int)]
 getFirstOccupiedCellsInRangeBelowRows startCol endCol positions gameBoard
     | startCol == endCol = [(cell, index, startCol)]
@@ -93,10 +73,6 @@ initEmptyBoard = matrix height width (\(y1,x1) -> Cell{ x = x1 - 1, y = y1 - 1, 
 checkGame :: Tetris -> Tetris
 checkGame tetris @ Tetris { mode = Play } = tetris { gameBoard = (clearFilledRows height $ gameBoard tetris) }
 checkGame tetris @ Tetris { mode = Pause } = tetris
-
--- Given a board, checks to see if the game has been lost
-gameLost :: Matrix Cell -> Bool
-gameLost board = foldr (\ (cell,rowNum,colNum) r -> if rowNum < 5 then True || r else False || r ) False (getAllHighestSquaresInRange 1 width board) 
 
 -- Returns the points scored and number of rows cleared
 getScore :: Tetris -> (Int, Int)
@@ -179,7 +155,6 @@ checkRow :: Vector.Vector Cell -> Bool
 checkRow vec = if null vec then True else occ1 && (checkRow (Vector.tail vec))
     where 
         occ1 = occ (Vector.head vec)
-
 
 -- GAME ENGINE --
 
